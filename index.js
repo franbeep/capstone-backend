@@ -3,6 +3,7 @@ require('dotenv').config();
 const Redis = require('ioredis');
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 const redis = new Redis(
@@ -11,60 +12,35 @@ const redis = new Redis(
 
 app.use(cors());
 
-// test endpoints
-
-app.get('/', async (req, res, next) => {
-  const lastBpmRecorded = await redis.get(`bpm-current`);
-
-  return res.json(
-    `Last bpm record: ${lastBpmRecorded ? lastBpmRecorded : 'None recorded...'}`
-  );
-});
-
-app.get('/controller/current', (req, res, next) => {
-  const { bpm } = req.query;
-  if (bpm) {
-    redis.set('bpm-current', bpm);
-  }
-
-  return res.json({
-    data: `test: ${test ? 'Bpm set' : 'Bpm not set'}`,
-  });
-});
+const convertToBpm = x => 0.05 * x + 65;
 
 // endpoints
 
-app.get('/bpm/current', (req, res, next) => {
-  return res.json({ data: Math.floor(Math.random() * 120) });
+app.get('/bpm/current', async (req, res, next) => {
+  const response = await axios.get(
+    `https://api.thingspeak.com/channels/1445035/feeds.json?api_key=${process.env.THINGSPEAK_API}`
+  );
+
+  const { feeds } = response.data;
+
+  return res.json({
+    data: parseInt(convertToBpm(feeds[feeds.length - 1].field1)),
+  });
 });
 
-app.get('/bpm/day', (req, res, next) => {
-  return res.json([
-    { x: '0am', y: 50 },
-    { x: '1am', y: 50 },
-    { x: '2am', y: 50 },
-    { x: '3am', y: 50 },
-    { x: '4am', y: 50 },
-    { x: '5am', y: 50 },
-    { x: '6am', y: 50 },
-    { x: '7am', y: 50 },
-    { x: '8am', y: 50 },
-    { x: '9am', y: 50 },
-    { x: '10am', y: 50 },
-    { x: '11am', y: 50 },
-    { x: '0pm', y: 50 },
-    { x: '1pm', y: 50 },
-    { x: '2pm', y: 50 },
-    { x: '3pm', y: 50 },
-    { x: '4pm', y: 50 },
-    { x: '5pm', y: 50 },
-    { x: '6pm', y: 50 },
-    { x: '7pm', y: 50 },
-    { x: '8pm', y: 50 },
-    { x: '9pm', y: 50 },
-    { x: '10pm', y: 50 },
-    { x: '11pm', y: 50 },
-  ]);
+app.get('/bpm/day', async (req, res, next) => {
+  const response = await axios.get(
+    `https://api.thingspeak.com/channels/1445035/feeds.json?api_key=${process.env.THINGSPEAK_API}`
+  );
+
+  const { feeds } = response.data;
+
+  return res.json(
+    feeds.map(feed => ({
+      x: '',
+      y: parseInt(convertToBpm(feed.field1)),
+    }))
+  );
 });
 
 app.get('/bpm/week', (req, res, next) => {
