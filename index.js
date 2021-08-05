@@ -4,9 +4,15 @@ const Redis = require('ioredis');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const bodyParser = require('body-parser');
+
+const redis = new Redis(
+  `redis://redis:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}/0`
+);
 
 const app = express();
 
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
 const oneHour = 60 * 60 * 1000;
@@ -44,6 +50,23 @@ const combineFeedAverageReducer = (accumulator, current) => {
 };
 
 // endpoints
+
+app.get('/controller/action', async (req, res, next) => {
+  //
+  const action = await redis.get('current-action');
+  return res.json({
+    data: `current action: ${action}`,
+  });
+});
+
+app.post('/controller/action', async (req, res, next) => {
+  //
+  const action = `${req.body['action']}: ${req.body['theme']}`;
+  await redis.set('current-action', action);
+  return res.json({
+    data: `action '${action}' set`,
+  });
+});
 
 app.get('/bpm/current', async (req, res, next) => {
   const response = await axios.get(
