@@ -6,13 +6,42 @@ const cors = require('cors');
 const axios = require('axios');
 
 const app = express();
-const redis = new Redis(
-  `redis://redis:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}/0`
-);
 
 app.use(cors());
 
+const oneHour = 60 * 60 * 1000;
+const oneDay = 24 * oneHour;
+
 const convertToBpm = x => 0.05 * x + 65;
+const removeTimes = item => ({ x: item.x, y: parseInt(item.y / item.times) });
+const convertToAMPM = hour => (hour > 12 ? `${hour - 12}pm` : `${hour}am`);
+const convertToAMPMMap = feed => ({
+  x: `${convertToAMPM(new Date(feed.created_at).getHours())}`,
+  y: parseInt(convertToBpm(feed.field1)),
+});
+const convertToHourMinute = feed => ({
+  x: `${new Date(feed.created_at).getHours()}:${new Date(
+    feed.created_at
+  ).getMinutes()}`,
+  y: parseInt(convertToBpm(feed.field1)),
+});
+
+const combineFeedAverageReducer = (accumulator, current) => {
+  //
+  if (accumulator.some(item => item.x == current.x)) {
+    return accumulator.map(item => {
+      if (item.x == current.x)
+        return {
+          ...item,
+          y: item.y + current.y,
+          times: item.times + 1,
+        };
+      return item;
+    });
+  } else {
+    return accumulator.concat({ ...current, times: 1 });
+  }
+};
 
 // endpoints
 
@@ -28,77 +57,84 @@ app.get('/bpm/current', async (req, res, next) => {
   });
 });
 
+app.get('/bpm/hour', async (req, res, next) => {
+  const response = await axios.get(
+    `https://api.thingspeak.com/channels/1445035/feeds.json?api_key=${process.env.THINGSPEAK_API}`
+  );
+
+  const { feeds } = response.data;
+  const filteredFeeds = feeds.filter(feed => {
+    const date = new Date(feed.created_at);
+    const today = new Date();
+    return date > today - oneHour;
+  });
+
+  return res.json(
+    filteredFeeds
+      .map(convertToHourMinute)
+      .reduce(combineFeedAverageReducer, [])
+      .map(removeTimes)
+  );
+});
+
 app.get('/bpm/day', async (req, res, next) => {
   const response = await axios.get(
     `https://api.thingspeak.com/channels/1445035/feeds.json?api_key=${process.env.THINGSPEAK_API}`
   );
 
   const { feeds } = response.data;
+  const filteredFeeds = feeds.filter(feed => {
+    const date = new Date(feed.created_at);
+    const today = new Date();
+    return date > today - oneDay;
+  });
 
   return res.json(
-    feeds.map(feed => ({
-      x: '',
-      y: parseInt(convertToBpm(feed.field1)),
-    }))
+    filteredFeeds
+      .map(convertToAMPMMap)
+      .reduce(combineFeedAverageReducer, [])
+      .map(removeTimes)
   );
 });
 
-app.get('/bpm/week', (req, res, next) => {
-  return res.json([
-    { x: '0am', y: 50 },
-    { x: '1am', y: 50 },
-    { x: '2am', y: 50 },
-    { x: '3am', y: 50 },
-    { x: '4am', y: 50 },
-    { x: '5am', y: 50 },
-    { x: '6am', y: 50 },
-    { x: '7am', y: 50 },
-    { x: '8am', y: 50 },
-    { x: '9am', y: 50 },
-    { x: '10am', y: 50 },
-    { x: '11am', y: 50 },
-    { x: '0pm', y: 50 },
-    { x: '1pm', y: 50 },
-    { x: '2pm', y: 50 },
-    { x: '3pm', y: 50 },
-    { x: '4pm', y: 50 },
-    { x: '5pm', y: 50 },
-    { x: '6pm', y: 50 },
-    { x: '7pm', y: 50 },
-    { x: '8pm', y: 50 },
-    { x: '9pm', y: 50 },
-    { x: '10pm', y: 50 },
-    { x: '11pm', y: 50 },
-  ]);
+app.get('/bpm/week', async (req, res, next) => {
+  const response = await axios.get(
+    `https://api.thingspeak.com/channels/1445035/feeds.json?api_key=${process.env.THINGSPEAK_API}`
+  );
+
+  const { feeds } = response.data;
+  const filteredFeeds = feeds.filter(feed => {
+    const date = new Date(feed.created_at);
+    const today = new Date();
+    return date > today - oneDay * 7;
+  });
+
+  return res.json(
+    filteredFeeds
+      .map(convertToAMPMMap)
+      .reduce(combineFeedAverageReducer, [])
+      .map(removeTimes)
+  );
 });
 
-app.get('/bpm/month', (req, res, next) => {
-  return res.json([
-    { x: '0am', y: 50 },
-    { x: '1am', y: 50 },
-    { x: '2am', y: 50 },
-    { x: '3am', y: 50 },
-    { x: '4am', y: 50 },
-    { x: '5am', y: 50 },
-    { x: '6am', y: 50 },
-    { x: '7am', y: 50 },
-    { x: '8am', y: 50 },
-    { x: '9am', y: 50 },
-    { x: '10am', y: 50 },
-    { x: '11am', y: 50 },
-    { x: '0pm', y: 50 },
-    { x: '1pm', y: 50 },
-    { x: '2pm', y: 50 },
-    { x: '3pm', y: 50 },
-    { x: '4pm', y: 50 },
-    { x: '5pm', y: 50 },
-    { x: '6pm', y: 50 },
-    { x: '7pm', y: 50 },
-    { x: '8pm', y: 50 },
-    { x: '9pm', y: 50 },
-    { x: '10pm', y: 50 },
-    { x: '11pm', y: 50 },
-  ]);
+app.get('/bpm/month', async (req, res, next) => {
+  const response = await axios.get(
+    `https://api.thingspeak.com/channels/1445035/feeds.json?api_key=${process.env.THINGSPEAK_API}`
+  );
+
+  const { feeds } = response.data;
+  const filteredFeeds = feeds.filter(feed => {
+    const date = new Date(feed.created_at);
+    const today = new Date();
+    return date > today - oneDay * 30;
+  });
+
+  return res.json(
+    filteredFeeds
+      .map(convertToAMPMMap)
+      .reduce(combineFeedAverageReducer, [])
+      .map(removeTimes)
+  );
 });
 
 app.listen(process.env.PORT || 5656, err => {
