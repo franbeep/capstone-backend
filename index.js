@@ -12,6 +12,27 @@ const redis = new Redis(
 
 const app = express();
 
+const weatherMap = {
+  '01d': '☀️',
+  '02d': '⛅️',
+  '03d': '☁️',
+  '04d': '☁️',
+  '09d': '\uD83C\uDF27',
+  '10d': '\uD83C\uDF26',
+  '11d': '⛈',
+  '13d': '❄️',
+  '50d': '\uD83C\uDF2B',
+  '01n': '\uD83C\uDF11',
+  '02n': '\uD83C\uDF11 ☁',
+  '03n': '☁️',
+  '04n': '️️☁☁',
+  '09n': '\uD83C\uDF27',
+  '10n': '☔️',
+  '11n': '⛈',
+  '13n': '❄️',
+  '50n': '\uD83C\uDF2B',
+};
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
@@ -50,6 +71,20 @@ const combineFeedAverageReducer = (accumulator, current) => {
 };
 
 // endpoints
+
+app.get('/weather', async (req, res, next) => {
+  const { data } = await axios.get(
+    `http://api.openweathermap.org/data/2.5/weather?q=London,ON,CA&appid=${process.env.OPENWEATHERMAP_API_KEY}`
+  );
+
+  console.log(data);
+
+  return res.json({
+    data: `${weatherMap[data.weather[0].icon]} ${
+      data.weather[0].main
+    } ${parseInt(data.main.temp - 273)}°C`,
+  });
+});
 
 app.get('/controller/action', async (req, res, next) => {
   //
